@@ -1027,7 +1027,12 @@ class ClaudeAccountService {
   }
 
   // 🚫 标记账号为限流状态
-  async markAccountRateLimited(accountId, sessionHash = null, rateLimitResetTimestamp = null) {
+  async markAccountRateLimited(
+    accountId,
+    sessionHash = null,
+    rateLimitResetTimestamp = null,
+    errorCode = null
+  ) {
     try {
       const accountData = await redis.getClaudeAccount(accountId)
       if (!accountData || Object.keys(accountData).length === 0) {
@@ -1039,8 +1044,17 @@ class ClaudeAccountService {
       updatedAccountData.rateLimitedAt = new Date().toISOString()
       updatedAccountData.rateLimitStatus = 'limited'
 
+      // 如果是 500、504、404 错误，设置5分钟的限流时长
+      if (errorCode === 500 || errorCode === 504 || errorCode === 404) {
+        const fiveMinutesLater = new Date(Date.now() + 5 * 60 * 1000)
+        updatedAccountData.rateLimitEndAt = fiveMinutesLater.toISOString()
+        updatedAccountData.errorCode = errorCode // 记录错误码
+        logger.warn(
+          `🚫 Account marked as rate limited (5 minutes for ${errorCode} error): ${accountData.name} (${accountId}) until ${fiveMinutesLater.toISOString()}`
+        )
+      }
       // 如果提供了准确的限流重置时间戳（来自API响应头）
-      if (rateLimitResetTimestamp) {
+      else if (rateLimitResetTimestamp) {
         // 将Unix时间戳（秒）转换为毫秒并创建Date对象
         const resetTime = new Date(rateLimitResetTimestamp * 1000)
         updatedAccountData.rateLimitEndAt = resetTime.toISOString()

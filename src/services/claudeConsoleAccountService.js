@@ -342,7 +342,7 @@ class ClaudeConsoleAccountService {
   }
 
   // 🚫 标记账号为限流状态
-  async markAccountRateLimited(accountId) {
+  async markAccountRateLimited(accountId, errorCode = null) {
     try {
       const client = redis.getClientSafe()
       const account = await this.getAccount(accountId)
@@ -362,6 +362,16 @@ class ClaudeConsoleAccountService {
       const updates = {
         rateLimitedAt: new Date().toISOString(),
         rateLimitStatus: 'limited'
+      }
+
+      // 如果是 500、504、404 错误，设置5分钟的限流时长
+      if (errorCode === 500 || errorCode === 504 || errorCode === 404) {
+        const fiveMinutesLater = new Date(Date.now() + 5 * 60 * 1000)
+        updates.rateLimitEndAt = fiveMinutesLater.toISOString()
+        updates.errorCode = errorCode
+        logger.warn(
+          `🚫 Claude Console account marked as rate limited (5 minutes for ${errorCode} error): ${account.name} (${accountId}) until ${fiveMinutesLater.toISOString()}`
+        )
       }
 
       await client.hset(`${this.ACCOUNT_KEY_PREFIX}${accountId}`, updates)

@@ -210,6 +210,17 @@ class ClaudeRelayService {
               `🕐 Extracted rate limit reset timestamp: ${rateLimitResetTimestamp} (${new Date(rateLimitResetTimestamp * 1000).toISOString()})`
             )
           }
+        }
+        // 检查是否为500、504、404状态码，也触发通道切换
+        else if (
+          response.statusCode === 500 ||
+          response.statusCode === 504 ||
+          response.statusCode === 404
+        ) {
+          isRateLimited = true
+          logger.warn(
+            `🚫 Server error detected (${response.statusCode}) for account ${accountId}, switching channel`
+          )
         } else {
           // 检查响应体中的错误信息
           try {
@@ -1160,6 +1171,21 @@ class ClaudeRelayService {
               accountType,
               sessionHash,
               rateLimitResetTimestamp
+            )
+          }
+          // 处理服务器错误状态（500、504、404），触发通道切换
+          else if (res.statusCode === 500 || res.statusCode === 504 || res.statusCode === 404) {
+            logger.warn(
+              `🚫 Server error detected in stream (${res.statusCode}) for account ${accountId}, switching channel`
+            )
+            // 标记账号为限流状态并删除粘性会话映射（复用限流逻辑来触发通道切换）
+            // 传入特殊的错误码标识，以便设置5分钟的限流时长
+            await unifiedClaudeScheduler.markAccountRateLimited(
+              accountId,
+              accountType,
+              sessionHash,
+              null, // 服务器错误没有重置时间戳
+              res.statusCode // 传入错误码
             )
           } else if (res.statusCode === 200) {
             // 如果请求成功，检查并移除限流状态

@@ -518,17 +518,19 @@ class UnifiedClaudeScheduler {
     accountId,
     accountType,
     sessionHash = null,
-    rateLimitResetTimestamp = null
+    rateLimitResetTimestamp = null,
+    errorCode = null
   ) {
     try {
       if (accountType === 'claude-official') {
         await claudeAccountService.markAccountRateLimited(
           accountId,
           sessionHash,
-          rateLimitResetTimestamp
+          rateLimitResetTimestamp,
+          errorCode
         )
       } else if (accountType === 'claude-console') {
-        await claudeConsoleAccountService.markAccountRateLimited(accountId)
+        await claudeConsoleAccountService.markAccountRateLimited(accountId, errorCode)
       }
 
       // 删除会话映射

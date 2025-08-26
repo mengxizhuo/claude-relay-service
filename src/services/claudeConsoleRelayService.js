@@ -175,9 +175,14 @@ class ClaudeConsoleRelayService {
         `[DEBUG] Response data preview: ${typeof response.data === 'string' ? response.data.substring(0, 200) : JSON.stringify(response.data).substring(0, 200)}`
       )
 
-      // 检查是否为限流错误
+      // 检查是否为限流错误或服务器错误
       if (response.status === 429) {
         logger.warn(`🚫 Rate limit detected for Claude Console account ${accountId}`)
+        await claudeConsoleAccountService.markAccountRateLimited(accountId)
+      } else if (response.status === 500 || response.status === 504 || response.status === 404) {
+        logger.warn(
+          `🚫 Server error detected (${response.status}) for Claude Console account ${accountId}, switching channel`
+        )
         await claudeConsoleAccountService.markAccountRateLimited(accountId)
       } else if (response.status === 200 || response.status === 201) {
         // 如果请求成功，检查并移除限流状态
@@ -364,6 +369,15 @@ class ClaudeConsoleRelayService {
             logger.error(`❌ Claude Console API returned error status: ${response.status}`)
 
             if (response.status === 429) {
+              claudeConsoleAccountService.markAccountRateLimited(accountId)
+            } else if (
+              response.status === 500 ||
+              response.status === 504 ||
+              response.status === 404
+            ) {
+              logger.warn(
+                `🚫 Server error detected in stream (${response.status}) for Claude Console account ${accountId}, switching channel`
+              )
               claudeConsoleAccountService.markAccountRateLimited(accountId)
             }
 
@@ -564,8 +578,18 @@ class ClaudeConsoleRelayService {
 
           logger.error('❌ Claude Console Claude stream request error:', error.message)
 
-          // 检查是否是429错误
+          // 检查是否是429错误或服务器错误
           if (error.response && error.response.status === 429) {
+            claudeConsoleAccountService.markAccountRateLimited(accountId)
+          } else if (
+            error.response &&
+            (error.response.status === 500 ||
+              error.response.status === 504 ||
+              error.response.status === 404)
+          ) {
+            logger.warn(
+              `🚫 Server error detected in stream error (${error.response.status}) for Claude Console account ${accountId}, switching channel`
+            )
             claudeConsoleAccountService.markAccountRateLimited(accountId)
           }
 

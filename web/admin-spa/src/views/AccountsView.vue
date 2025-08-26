@@ -539,6 +539,27 @@
                     <span class="ml-1">重置状态</span>
                   </button>
                   <button
+                    v-if="
+                      (account.platform === 'claude' || account.platform === 'claude-console') &&
+                      (account.rateLimitStatus?.isRateLimited ||
+                        account.rateLimitStatus === 'limited')
+                    "
+                    :class="[
+                      'rounded px-2.5 py-1 text-xs font-medium transition-colors',
+                      account.isClearingRateLimit
+                        ? 'cursor-not-allowed bg-gray-100 text-gray-400'
+                        : 'bg-orange-100 text-orange-700 hover:bg-orange-200'
+                    ]"
+                    :disabled="account.isClearingRateLimit"
+                    :title="account.isClearingRateLimit ? '清除中...' : '手动清除限流状态'"
+                    @click="clearRateLimit(account)"
+                  >
+                    <i
+                      :class="['fas fa-unlock', account.isClearingRateLimit ? 'animate-pulse' : '']"
+                    />
+                    <span class="ml-1">清除限流</span>
+                  </button>
+                  <button
                     :class="[
                       'rounded px-2.5 py-1 text-xs font-medium transition-colors',
                       account.isTogglingSchedulable
@@ -736,6 +757,21 @@
 
           <!-- 操作按钮 -->
           <div class="mt-3 flex gap-2 border-t border-gray-100 pt-3">
+            <button
+              v-if="
+                (account.platform === 'claude' || account.platform === 'claude-console') &&
+                (account.rateLimitStatus?.isRateLimited || account.rateLimitStatus === 'limited')
+              "
+              class="flex-1 rounded-lg bg-orange-50 px-3 py-2 text-xs text-orange-600 transition-colors hover:bg-orange-100"
+              :disabled="account.isClearingRateLimit"
+              @click="clearRateLimit(account)"
+            >
+              <i
+                :class="['fas fa-unlock mr-1', account.isClearingRateLimit ? 'animate-pulse' : '']"
+              />
+              清除限流
+            </button>
+
             <button
               class="flex flex-1 items-center justify-center gap-1 rounded-lg px-3 py-2 text-xs transition-colors"
               :class="
@@ -1296,6 +1332,52 @@ const deleteAccount = async (account) => {
     }
   } catch (error) {
     showToast('删除失败', 'error')
+  }
+}
+
+// 清除限流状态
+const clearRateLimit = async (account) => {
+  if (account.isClearingRateLimit) return
+
+  let confirmed = false
+  if (window.showConfirm) {
+    confirmed = await window.showConfirm(
+      '清除限流状态',
+      '确定要手动清除此账户的限流状态吗？',
+      '确定清除',
+      '取消'
+    )
+  } else {
+    confirmed = confirm('确定要手动清除此账户的限流状态吗？')
+  }
+
+  if (!confirmed) return
+
+  try {
+    account.isClearingRateLimit = true
+
+    let endpoint
+    if (account.platform === 'claude') {
+      endpoint = `/admin/claude-accounts/${account.id}/clear-rate-limit`
+    } else if (account.platform === 'claude-console') {
+      endpoint = `/admin/claude-console-accounts/${account.id}/clear-rate-limit`
+    } else {
+      showToast('该账户类型不支持清除限流', 'warning')
+      return
+    }
+
+    const data = await apiClient.post(endpoint)
+
+    if (data.success) {
+      showToast('限流状态已清除', 'success')
+      loadAccounts()
+    } else {
+      showToast(data.message || '清除限流失败', 'error')
+    }
+  } catch (error) {
+    showToast('清除限流失败', 'error')
+  } finally {
+    account.isClearingRateLimit = false
   }
 }
 

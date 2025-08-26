@@ -1763,6 +1763,21 @@ router.put(
   }
 )
 
+// 清除Claude账户限流状态
+router.post('/claude-accounts/:accountId/clear-rate-limit', authenticateAdmin, async (req, res) => {
+  try {
+    const { accountId } = req.params
+
+    const result = await claudeAccountService.removeAccountRateLimit(accountId)
+
+    logger.success(`✅ Admin cleared rate limit for Claude account: ${accountId}`)
+    return res.json({ success: true, data: result })
+  } catch (error) {
+    logger.error('❌ Failed to clear Claude account rate limit:', error)
+    return res.status(500).json({ error: 'Failed to clear rate limit', message: error.message })
+  }
+})
+
 // 🎮 Claude Console 账户管理
 
 // 获取所有Claude Console账户
@@ -2042,6 +2057,25 @@ router.put(
       return res
         .status(500)
         .json({ error: 'Failed to toggle schedulable status', message: error.message })
+    }
+  }
+)
+
+// 清除Claude Console账户限流状态
+router.post(
+  '/claude-console-accounts/:accountId/clear-rate-limit',
+  authenticateAdmin,
+  async (req, res) => {
+    try {
+      const { accountId } = req.params
+
+      const result = await claudeConsoleAccountService.removeAccountRateLimit(accountId)
+
+      logger.success(`✅ Admin cleared rate limit for Claude Console account: ${accountId}`)
+      return res.json({ success: true, data: result })
+    } catch (error) {
+      logger.error('❌ Failed to clear Claude Console account rate limit:', error)
+      return res.status(500).json({ error: 'Failed to clear rate limit', message: error.message })
     }
   }
 )
